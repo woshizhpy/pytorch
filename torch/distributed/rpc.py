@@ -11,12 +11,14 @@ import sys
 import warnings
 import torch
 from enum import Enum
+from functools import wraps
 
 
 _agent = None
 
 
 def _require_initialized(func):
+    @wraps(func)
     def wrapper(*args, **kwargs):
         if _agent is None:
             raise RuntimeError("RPC has not been initialized. "
