@@ -2,6 +2,8 @@
 
 #include <string>
 
+#include <ATen/core/Reduction.h>
+#include <c10/util/variant.h>
 #include <torch/csrc/WindowsTorchApiMacro.h>
 
 #define TORCH_ENUM_DECLARE(name) \
@@ -43,9 +45,13 @@ TORCH_ENUM_DECLARE(ReLU)
 TORCH_ENUM_DECLARE(LeakyReLU)
 TORCH_ENUM_DECLARE(FanIn)
 TORCH_ENUM_DECLARE(FanOut)
+TORCH_ENUM_DECLARE(None)
+TORCH_ENUM_DECLARE(Mean)
+TORCH_ENUM_DECLARE(Sum)
 
 namespace torch {
 namespace enumtype {
+
 struct enum_name {
   TORCH_ENUM_PRETTY_PRINT(Linear)
   TORCH_ENUM_PRETTY_PRINT(Conv1D)
@@ -60,6 +66,21 @@ struct enum_name {
   TORCH_ENUM_PRETTY_PRINT(LeakyReLU)
   TORCH_ENUM_PRETTY_PRINT(FanIn)
   TORCH_ENUM_PRETTY_PRINT(FanOut)
+  TORCH_ENUM_PRETTY_PRINT(None)
+  TORCH_ENUM_PRETTY_PRINT(Mean)
+  TORCH_ENUM_PRETTY_PRINT(Sum)
 };
+
+inline at::Reduction::Reduction _convert_reduction_variant_type_to_enum(
+    c10::variant<enumtype::kNone, enumtype::kMean, enumtype::kSum> reduction_variant) {
+  if (c10::get_if<enumtype::kNone>(&reduction_variant)) {
+    return at::Reduction::None;
+  } else if (c10::get_if<enumtype::kMean>(&reduction_variant)) {
+    return at::Reduction::Mean;
+  } else if (c10::get_if<enumtype::kSum>(&reduction_variant)) {
+    return at::Reduction::Sum;
+  }
+}
+
 } // namespace enumtype
 } // namespace torch
