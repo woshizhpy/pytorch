@@ -203,8 +203,8 @@ class MinMaxObserver(_ObserverBase):
                 "Cannot reduce range for symmetric quantization for quint8"
             )
 
-    def forward(self, x_orig):
-        x = x_orig.detach()  # avoid keeping autograd tape
+    @torch.no_grad()
+    def forward(self, x):
         min_val = self.min_val
         max_val = self.max_val
         if min_val is None or max_val is None:
@@ -215,7 +215,7 @@ class MinMaxObserver(_ObserverBase):
             max_val = torch.max(torch.max(x), max_val)
         self.min_val = min_val
         self.max_val = max_val
-        return x_orig
+        return x
 
     @torch.jit.export
     def calculate_qparams(self):
@@ -243,8 +243,8 @@ class MovingAverageMinMaxObserver(MinMaxObserver):
         self.averaging_constant = averaging_constant
         super(MovingAverageMinMaxObserver, self).__init__(**kwargs)
 
-    def forward(self, x_orig):
-        x = x_orig.detach()  # avoid keeping autograd tape
+    @torch.no_grad()
+    def forward(self, x):
         min_val = self.min_val
         max_val = self.max_val
         if min_val is None or max_val is None:
@@ -255,7 +255,7 @@ class MovingAverageMinMaxObserver(MinMaxObserver):
             max_val = max_val + self.averaging_constant * (torch.max(x) - max_val)
         self.min_val = min_val
         self.max_val = max_val
-        return x_orig
+        return x
 
 
 class PerChannelMinMaxObserver(_ObserverBase):
@@ -279,8 +279,8 @@ class PerChannelMinMaxObserver(_ObserverBase):
                 "Cannot reduce range for symmetric quantization for quint8"
             )
 
-    def forward(self, x_orig):
-        x = x_orig.detach()  # avoid keeping autograd tape
+    @torch.no_grad()
+    def forward(self, x):
         min_vals = self.min_vals
         max_vals = self.max_vals
         x_dim = x.size()
@@ -298,7 +298,7 @@ class PerChannelMinMaxObserver(_ObserverBase):
             max_vals = torch.max(torch.max(y, 1)[0], max_vals)
         self.min_vals = min_vals
         self.max_vals = max_vals
-        return x_orig
+        return x
 
     def calculate_qparams(self):
         return self._calculate_per_channel_qparams(self.min_vals, self.max_vals)
@@ -326,8 +326,8 @@ class MovingAveragePerChannelMinMaxObserver(PerChannelMinMaxObserver):
         self.averaging_constant = averaging_constant
         super(MovingAveragePerChannelMinMaxObserver, self).__init__(**kwargs)
 
-    def forward(self, x_orig):
-        x = x_orig.detach()  # avoid keeping autograd tape
+    @torch.no_grad()
+    def forward(self, x):
         min_vals = self.min_vals
         max_vals = self.max_vals
         x_dim = x.size()
@@ -345,7 +345,7 @@ class MovingAveragePerChannelMinMaxObserver(PerChannelMinMaxObserver):
             max_vals = max_vals + self.averaging_constant * (torch.max(y, 1)[0] - max_vals)
         self.min_vals = min_vals
         self.max_vals = max_vals
-        return x_orig
+        return x
 
 class HistogramObserver(_ObserverBase):
     r"""
@@ -546,43 +546,43 @@ class HistogramObserver(_ObserverBase):
             if dst_bin_cnt < src_bin_count:
                 dst_histogram[dst_bin2] += src_bin_count - dst_bin_cnt
 
+    @torch.no_grad()
     def forward(self, x):
-        with torch.no_grad():
-            min_val = self.min_val
-            max_val = self.max_val
-            if min_val is None or max_val is None:
-                min_val = torch.min(x)
-                max_val = torch.max(x)
-                self.min_val = min_val
-                self.max_val = max_val
-                self.histogram = torch.histc(x, self.bins, min=min_val, max=max_val)
-            else:
-                new_min = torch.min(x)
-                new_max = torch.max(x)
-                new_histogram = torch.histc(x, self.bins, min=new_min, max=new_max)
-                # combine the existing histogram and new histogram into 1 histogram
-                combined_histogram = torch.zeros_like(self.histogram)
-                combined_min = torch.min(new_min, self.min_val)
-                combined_max = torch.max(new_max, self.max_val)
-                self._combine_histograms(
-                    combined_histogram,
-                    combined_min.item(),
-                    combined_max.item(),
-                    self.histogram,
-                    self.min_val.item(),
-                    self.max_val.item(),
-                )
-                self._combine_histograms(
-                    combined_histogram,
-                    combined_min.item(),
-                    combined_max.item(),
-                    new_histogram,
-                    new_min.item(),
-                    new_max.item(),
-                )
-                self.histogram = combined_histogram
-                self.min_val = combined_min
-                self.max_val = combined_max
+        min_val = self.min_val
+        max_val = self.max_val
+        if min_val is None or max_val is None:
+            min_val = torch.min(x)
+            max_val = torch.max(x)
+            self.min_val = min_val
+            self.max_val = max_val
+            self.histogram = torch.histc(x, self.bins, min=min_val, max=max_val)
+        else:
+            new_min = torch.min(x)
+            new_max = torch.max(x)
+            new_histogram = torch.histc(x, self.bins, min=new_min, max=new_max)
+            # combine the existing histogram and new histogram into 1 histogram
+            combined_histogram = torch.zeros_like(self.histogram)
+            combined_min = torch.min(new_min, self.min_val)
+            combined_max = torch.max(new_max, self.max_val)
+            self._combine_histograms(
+                combined_histogram,
+                combined_min.item(),
+                combined_max.item(),
+                self.histogram,
+                self.min_val.item(),
+                self.max_val.item(),
+            )
+            self._combine_histograms(
+                combined_histogram,
+                combined_min.item(),
+                combined_max.item(),
+                new_histogram,
+                new_min.item(),
+                new_max.item(),
+            )
+            self.histogram = combined_histogram
+            self.min_val = combined_min
+            self.max_val = combined_max
         return x
 
     def calculate_qparams(self):
