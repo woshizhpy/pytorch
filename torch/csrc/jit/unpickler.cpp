@@ -59,6 +59,8 @@ void restoreAccurateTypeTags(const IValue& root, const TypePtr& type_tag) {
   while (!to_process.empty()) {
     Work w = std::move(to_process.back());
     to_process.pop_back();
+    if (!w.static_type)
+      continue;
     // ensure we only scan each pointer value once, otherwise this
     // can become exponential (and if we allow recursive data in the future,
     // it would not terminiate).
@@ -524,12 +526,12 @@ PickleOpCode Unpickler::readInstruction() {
         TORCH_CHECK(false, "class name not understood: torch.", class_name);
       } else {
         AT_ASSERT(class_resolver_);
-        at::StrongTypePtr type =
+        c10::ClassTypePtr typePtr =
             class_resolver_(c10::QualifiedName(module_name, class_name));
-        globals_.emplace_back([this, type] {
+        globals_.emplace_back([this, typePtr] {
           auto val = stack_.back();
           stack_.pop_back();
-          auto obj = obj_loader_(type, val);
+          auto obj = obj_loader_(typePtr, val);
           stack_.emplace_back(std::move(obj));
         });
       }
