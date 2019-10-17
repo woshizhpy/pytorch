@@ -40,6 +40,8 @@ class ProcessGroupAgent : public RpcAgent {
       std::shared_ptr<c10d::ProcessGroup> pg,
       int numSendRecvThreads = 4);
 
+  ~ProcessGroupAgent() override;
+
   const WorkerInfo& getWorkerInfo(const std::string& workerName) const override;
 
   const WorkerInfo& getWorkerInfo(worker_id_t id) const override;
